@@ -60,7 +60,15 @@ const startServer = async (): Promise<void> => {
     });
 
   } catch (error) {
-    logger.error('Failed to start server', error);
+    if (error instanceof Error) {
+      logger.error('Failed to start server', {
+        message: error.message,
+        stack: error.stack,
+        ...error,
+      });
+    } else {
+      logger.error('Failed to start server', error);
+    }
     process.exit(1);
   }
 };
