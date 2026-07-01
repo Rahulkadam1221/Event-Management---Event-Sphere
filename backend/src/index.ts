@@ -7,15 +7,16 @@ import { initCronJobs } from './services/cronService';
 import { logger } from './utils/logger';
 import { config } from './utils/config';
 
-const prisma = new PrismaClient();
-
 const startServer = async (): Promise<void> => {
   try {
     // DEBUG: Log what DATABASE_URL Prisma is receiving
     const dbUrl = process.env.DATABASE_URL || '(not set)';
+    const directUrl = process.env.DIRECT_URL || '(not set)';
     console.log(`[DEBUG] DATABASE_URL starts with: "${dbUrl.substring(0, 15)}..." (length: ${dbUrl.length})`);
-    console.log(`[DEBUG] DATABASE_URL char codes: ${[...dbUrl.substring(0, 20)].map(c => c.charCodeAt(0)).join(',')}`);
+    console.log(`[DEBUG] DIRECT_URL starts with: "${directUrl.substring(0, 15)}..." (length: ${directUrl.length})`);
+    console.log(`[DEBUG] All env keys: ${Object.keys(process.env).filter(k => k.includes('DATA') || k.includes('DIRECT') || k.includes('DB')).join(', ')}`);
 
+    const prisma = new PrismaClient();
     // Test DB connection
     await prisma.$connect();
     logger.success('Database connected successfully');
