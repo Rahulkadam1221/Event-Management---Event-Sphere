@@ -1,0 +1,369 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ATTENDEE
+  ORGANIZER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum TicketType {
+  FREE
+  GENERAL
+  VIP
+  STUDENT
+}
+
+enum TicketStatus {
+  ACTIVE
+  CANCELLED
+  REFUNDED
+}
+
+enum AttendanceStatus {
+  SUCCESS
+  FAILED
+}
+
+enum AttendanceType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String?
+  name          String
+  avatar        String?
+  role          UserRole  @default(ATTENDEE)
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  googleId      String?   @unique
+  bio           String?
+  phone         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  organizedEvents  Event[]          @relation("OrganizerEvents")
+  bookings         Booking[]
+  messages         Message[]
+  messageReactions MessageReaction[]
+  notifications    Notification[]
+  refreshTokens    RefreshToken[]
+  scannedAttendances Attendance[]   @relation("ScannerAttendance")
+  savedEvents      SavedEvent[]
+
+  @@index([role])
+  @@index([email])
+  @@map("users")
+}
+
+model Event {
+  id              String      @id @default(uuid())
+  title           String
+  slug            String      @unique
+  description     String
+  shortDesc       String?
+  bannerUrl       String?
+  category        String
+  tags            String[]    @default([])
+  venue           String
+  address         String
+  city            String
+  state           String
+  country         String      @default("India")
+  latitude        Float?
+  longitude       Float?
+  startDate       DateTime
+  endDate         DateTime
+  startTime       String
+  endTime         String
+  capacity        Int
+  availableSeats  Int
+  isFeatured      Boolean     @default(false)
+  isTrending      Boolean     @default(false)
+  status          EventStatus @default(DRAFT)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Organizer
+  organizerId  String
+  organizer    User     @relation("OrganizerEvents", fields: [organizerId], references: [id], onDelete: Cascade)
+
+  // Relations
+  ticketTiers  TicketTier[]
+  bookings     Booking[]
+  messages     Message[]
+  notifications Notification[]
+  savedByUsers  SavedEvent[]
+
+  @@index([organizerId])
+  @@index([status])
+  @@index([category])
+  @@index([startDate])
+  @@map("events")
+}
+
+model TicketTier {
+  id           String     @id @default(uuid())
+  name         String
+  type         TicketType @default(GENERAL)
+  price        Float
+  quantity     Int
+  sold         Int        @default(0)
+  description  String?
+  perks        String[]   @default([])
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  eventId  String
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  tickets  Ticket[]
+
+  @@index([eventId])
+  @@map("ticket_tiers")
+}
+
+model Booking {
+  id                  String        @id @default(uuid())
+  bookingReference    String        @unique @default(uuid())
+  ticketCount         Int
+  unitPrice           Float
+  subtotal            Float
+  discountAmount      Float         @default(0)
+  taxAmount           Float         @default(0)
+  totalAmount         Float
+  couponCode          String?
+  status              BookingStatus @default(PENDING)
+  paymentId           String?
+  paymentOrderId      String?
+  paymentSignature    String?
+  qrCode              String?
+  checkedIn           Boolean       @default(false)
+  checkedInAt         DateTime?
+  reminderSent24h     Boolean       @default(false)
+  reminderSent1h      Boolean       @default(false)
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId      String
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTierId String
+  ticketTier   TicketTier @relation(fields: [ticketTierId], references: [id])
+
+  tickets      Ticket[]
+  payments     Payment[]
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+  @@map("bookings")
+}
+
+model Ticket {
+  id           String       @id @default(uuid())
+  ticketNumber String       @unique
+  attendeeName String
+  attendeeEmail String
+  qrCode       String?
+  status       TicketStatus @default(ACTIVE)
+  isCheckedIn  Boolean      @default(false)
+  lastCheckedInAt DateTime?
+  lastCheckedOutAt DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  bookingId    String
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketTierId String
+  ticketTier   TicketTier   @relation(fields: [ticketTierId], references: [id])
+
+  attendances  Attendance[]
+
+  @@index([bookingId])
+  @@index([ticketTierId])
+  @@index([ticketNumber])
+  @@map("tickets")
+}
+
+model Attendance {
+  id          String           @id @default(uuid())
+  checkedInAt DateTime         @default(now())
+  status      AttendanceStatus @default(SUCCESS)
+  type        AttendanceType   @default(CHECK_IN)
+  notes       String?
+
+  ticketId    String
+  ticket      Ticket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  scannerId   String
+  scanner     User             @relation("ScannerAttendance", fields: [scannerId], references: [id])
+
+  @@index([ticketId])
+  @@index([scannerId])
+  @@index([checkedInAt])
+  @@map("attendance_records")
+}
+
+model Payment {
+  id               String        @id @default(uuid())
+  paymentReference String        @unique
+  amount           Float
+  currency         String        @default("INR")
+  status           PaymentStatus @default(PENDING)
+  method           String
+  gateway          String        @default("RAZORPAY")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  bookingId        String
+  booking          Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([paymentReference])
+  @@index([status])
+  @@map("payments")
+}
+
+model Message {
+  id        String    @id @default(uuid())
+  text      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions MessageReaction[]
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  emoji     String
+  createdAt DateTime @default(now())
+
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+  @@map("message_reactions")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId  String?
+  event    Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model Coupon {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  discountType   String   // 'percentage' | 'fixed'
+  discountValue  Float
+  maxUses        Int?
+  usedCount      Int      @default(0)
+  minOrderAmount Float    @default(0)
+  expiresAt      DateTime?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("coupons")
+}
+
+model SavedEvent {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
+  @@map("saved_events")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   // e.g. "USER_ROLE_UPDATE", "USER_STATUS_TOGGLE", "EVENT_UPDATE", "REFUND_INITIATED"
+  target      String   // Name or ID of affected resource
+  details     String   // Context summary
+  performedBy String   // Admin name or email
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
