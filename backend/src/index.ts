@@ -11,6 +11,11 @@ const prisma = new PrismaClient();
 
 const startServer = async (): Promise<void> => {
   try {
+    // DEBUG: Log what DATABASE_URL Prisma is receiving
+    const dbUrl = process.env.DATABASE_URL || '(not set)';
+    console.log(`[DEBUG] DATABASE_URL starts with: "${dbUrl.substring(0, 15)}..." (length: ${dbUrl.length})`);
+    console.log(`[DEBUG] DATABASE_URL char codes: ${[...dbUrl.substring(0, 20)].map(c => c.charCodeAt(0)).join(',')}`);
+
     // Test DB connection
     await prisma.$connect();
     logger.success('Database connected successfully');
