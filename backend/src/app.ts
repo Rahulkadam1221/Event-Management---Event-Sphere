@@ -29,12 +29,19 @@ export const createApp = (): Application => {
   }));
 
   // CORS
+  const allowedOrigins = [
+    config.frontendUrl.replace(/\/+$/, ''),
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ];
   app.use(cors({
     origin: (origin, callback) => {
-      if (config.env === 'development' || !origin) {
+      if (!origin || config.env === 'development') {
         callback(null, true);
+      } else if (allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+        callback(null, origin); // Reflect the actual request origin
       } else {
-        callback(null, config.frontendUrl);
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     },
     credentials: true,
