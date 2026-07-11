@@ -30,20 +30,13 @@ export const createApp = (): Application => {
 
   // CORS
   const allowedOrigins = [
+    config.frontendUrl,
     config.frontendUrl.replace(/\/+$/, ''),
     'http://localhost:5173',
     'http://localhost:3000',
-  ];
+  ].filter(Boolean);
   app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin || config.env === 'development') {
-        callback(null, true);
-      } else if (allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
-        callback(null, origin); // Reflect the actual request origin
-      } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
-      }
-    },
+    origin: config.env === 'development' ? true : allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
